@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This describes the MCUboot build; it cannot be built from this directory. MCUboot derives its
+# source root from APPLICATION_SOURCE_DIR, so it is only buildable from
+# bootloader/mcuboot/boot/zephyr with these fragments passed in. See README.md, and keep twister
+# scoped away from here:
+#
+#   west twister -T wisun-sniffer/tests -T wisun-sniffer/application/wisun_sniffer
+
+sample:
+  name: MCUboot
+  description: >-
+    MCUboot bootloader configuration for the dongle: a single application slot,
+    updated over USB DFU, with no signature verification.
+
+tests:
+  # Single slot, no signature verification, USB DFU entered by holding the user button during
+  # reset. This is what a dongle handed out to someone else should carry.
+  sample.bootloader.mcuboot.dongle:
+    platform_allow: dongle/nrf52840
+    integration_platforms:
+      - dongle/nrf52840
+    extra_args:
+      - EXTRA_CONF_FILE=conf/mcuboot.conf;boards/dongle_nrf52840.conf
+      - EXTRA_DTC_OVERLAY_FILE=boards/dongle_nrf52840.overlay
+    tags: bootloader_mcuboot
+    build_only: true

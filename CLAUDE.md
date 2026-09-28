@@ -1,0 +1,73 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+# Working in this repository
+
+Notes for AI assistants. `README.md` covers what the repository is, how to set the workspace up
+and how to build and test — read it first and do not duplicate it here.
+`application/wisun_sniffer/CLAUDE.md` is the important one: it records what the firmware's code
+cannot tell you, including which vendor documentation is wrong.
+
+## Conventions that are easy to get wrong
+
+- **The tool configuration is upstream Zephyr's, unmodified.** `.checkpatch.conf`,
+  `.clang-format`, `.editorconfig`, `.gitlint`, `.ruff.toml` and `.yamllint` are verbatim copies
+  from Zephyr 4.2.1 and are annotated as such in `REUSE.toml` rather than carrying an added header
+  — so do not edit them to suit a change; change the code instead, or raise it upstream. The two
+  exceptions are mechanical: `extra-path` in `.gitlint` and `--typedefsfile` in `.checkpatch.conf`
+  name paths inside the zephyr tree and are repointed at `../zephyr/scripts/`.
+- **C is indented with tabs at 100 columns**, like upstream, everywhere including `boards/`. Always
+  finish with
+  `clang-format --dry-run --Werror application/wisun_sniffer/src/*.c application/wisun_sniffer/src/*.h`
+  and with `../zephyr/scripts/checkpatch.pl --no-tree -f` on what you touched; Zephyr's checkpatch
+  is stricter than the one this tree started with and does *not* excuse `LEADING_SPACE`,
+  `CODE_INDENT` or `BLOCK_COMMENT_STYLE`.
+- Ruff exemptions go in `.ruff-excludes.toml`, which is ours and which `.ruff.toml` extends. Adding
+  a line there to quiet a new script is the wrong direction; deleting one after a fix is the right
+  one. `pyproject.toml` deliberately has no `[tool.ruff]` section, since `.ruff.toml` wins anyway.
+- `reuse lint` must stay clean. A new license identifier needs its text in `LICENSES/`, and an
+  identifier no file uses any more is a failure too, so delete it with the last file that used it.
+- Markdown is checked with `rumdl`, spelling with `codespell`, YAML with `yamllint -c .yamllint`.
+- Commit subjects are `<area>: <imperative>`, with sub-areas where they help:
+  `application: wisun_sniffer: ...`, `boards: dongle: ...`, `doc: ...`. The body says *why*.
+- Every commit needs a `Signed-off-by:` line: `.gitlint` is Zephyr's and enforces the DCO, so
+  commit with `git commit -s` rather than plain `git commit`.
+- `scripts/run_checks.py --all --keep-going` runs all of the above in one go and is the quickest
+  way to see where a change stands; `--list` names the individual checks. It deliberately hands
+  `application/wisun_sniffer/src/ext/` to neither clang-format nor checkpatch, because those files
+  are generated and vendor-derived and would drown the output in findings nobody may act on.
+
+## Checks that do not currently pass on this machine
+
+`--ztest` and `--build` fail while twister is still starting up, with
+`TypeError: cannot pickle 'select.epoll' object`. The west workspace venv beside `.west/` is built
+on Python 3.14, whose default multiprocessing start method on Linux is `forkserver` rather than
+`fork`; twister 4.2.1 assumes `fork` and hands an unpicklable `GNUMakeJobServer` to a child
+process. `west twister` fails identically, so it is not the runner. Nothing in this repository can
+fix it — the workspace venv needs an interpreter of 3.13 or older, which is a workspace-level
+change made outside the VM. Do not treat it as a regression, and do not "fix" it by loosening a
+check.
+
+## An unraisable warning is reported against the wrong test
+
+`filterwarnings = ["error"]` in `pyproject.toml` turns a `ResourceWarning` into an error, but
+pytest collects unraisable exceptions at the *next* test's setup rather than where the file was
+leaked. So a leak in one module is reported as an `ERROR` in whatever runs after it — which, with
+`scripts/tests` in `testpaths`, is often a test that has nothing to do with it. Read the
+`ResourceWarning` traceback inside the `ExceptionGroup` for the file that was actually left open;
+the test name on the `ERROR` line is only where the collection happened to land.
+
+## Twister has to be scoped
+
+```console
+west twister -T wisun-sniffer/tests -T wisun-sniffer/application/wisun_sniffer -p native_sim
+```
+
+Not the repository root. `application/mcuboot/sample.yaml` describes builds that MCUboot can only
+perform from `bootloader/mcuboot/boot/zephyr` — it derives its source root from
+`APPLICATION_SOURCE_DIR` — so twister fails if it tries to build that directory in place. This is
+a known and accepted wrinkle, documented in `application/mcuboot/README.md`; do not try to "fix"
+it by deleting the descriptor.

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Custom local project config
+**/prj.local.conf
+
+# Build artifacts
+/build/
+build-*/
+
+# Twister results
+twister-out*
+
+# Python cache and virtual env
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+/.venv/
+
+# Tool caches
+.rumdl_cache/
+
+# CLion
+.idea/
+cmake-build-*
+
+# Qt Creator
+*.user
+
+# Vim swap files
+*.swp
+
+# mac files
+*.DS_Store
+
+# vs code files
+.vscode

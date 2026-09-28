@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[project]
+name = "wisun-sniffer-tools"
+version = "0.0.2"
+description = "Host-side tooling for the Wi-SUN sniffer dongle"
+requires-python = ">=3.10"
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+# The capture script is a program Wireshark runs through a symlink, not an importable package.
+# There is nothing here to build or install -- uv only manages the environment it runs in.
+package = false
+
+[tool.pytest.ini_options]
+# Prevent bit rot by turning warnings into errors. Justified exceptions can be added as described
+# in https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+filterwarnings = ["error"]
+testpaths = ["application/wisun_sniffer/tools/tests", "scripts/tests"]
+
+# There is deliberately no [tool.ruff] section: .ruff.toml is Zephyr's, and it takes precedence
+# over this file anyway, so a second copy of the settings here could only ever drift out of step
+# with it. Per-file exemptions belong in .ruff-excludes.toml, which .ruff.toml extends.

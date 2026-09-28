@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Per-file rule exemptions for .ruff.toml, which is Zephyr's and extends this file.
+#
+# Zephyr keeps the same list for the scripts that predate its adoption of ruff, and says of it:
+# "remove entries for files that pass CI compliance testing". The same applies here. Everything
+# below is code that arrived with the application and passes its own tests, so the entries record
+# rules it does not satisfy rather than rules it is excused from forever. Fixing one and deleting
+# its line is the intended direction; adding a line to quiet a new script is not.
+
+[lint.per-file-ignores]
+"./application/wisun_sniffer/tools/wisun_sniffer_capture.py" = [
+    "B904",     # https://docs.astral.sh/ruff/rules/raise-without-from-inside-except
+    "B905",     # https://docs.astral.sh/ruff/rules/zip-without-explicit-strict
+    "SIM105",   # https://docs.astral.sh/ruff/rules/suppressible-exception
+    "SIM115",   # https://docs.astral.sh/ruff/rules/open-file-with-context-handler
+]
+"./application/wisun_sniffer/tools/tests/test_retime.py" = [
+    "B905",     # https://docs.astral.sh/ruff/rules/zip-without-explicit-strict
+]
+"./application/wisun_sniffer/tools/tests/test_toolbar.py" = [
+    "B904",     # https://docs.astral.sh/ruff/rules/raise-without-from-inside-except
+]

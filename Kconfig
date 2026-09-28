@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# We do not want to tolerate any compiler warnings (by default)
+configdefault COMPILER_WARNINGS_AS_ERRORS
+    default y

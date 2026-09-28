@@ -1,0 +1,17 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
+ * Set code-partition to boot partition.
+ */
+/ {
+	aliases {
+        /* Button to enable DFU-mode during boot. */
+        mcuboot-button0 = &button0;
+
+        /* LED to indicate DFU-mode. */
+        mcuboot-led0 = &led0;
+    };
+};

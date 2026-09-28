@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+VERSION_MAJOR = 0
+VERSION_MINOR = 0
+PATCHLEVEL = 2
+VERSION_TWEAK = 0
+EXTRAVERSION = ""
