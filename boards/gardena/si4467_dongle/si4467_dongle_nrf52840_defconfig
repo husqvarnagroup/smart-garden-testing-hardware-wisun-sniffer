@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Clock configuration
+#
+# The 32 kHz crystal is optional. Since it is defective of some devices of rev. 0.3.0 and may be
+# completely omitted in the future, we derive the 32 kHz clock from the 32 MHz crystal by default.
+CONFIG_CLOCK_CONTROL_NRF_K32SRC_SYNTH=y
+
+# Enable MPU
+CONFIG_ARM_MPU=y
+
+# Enable hardware stack protection
+CONFIG_HW_STACK_PROTECTION=y
+
+# Enable GPIO
+CONFIG_GPIO=y
+
+# Enable pin control (see https://docs.zephyrproject.org/latest/hardware/pinctrl/index.html)
+CONFIG_PINCTRL=y
+
+# USB
+CONFIG_USB_DEVICE_STACK=y
+CONFIG_USB_DEVICE_MANUFACTURER="Gardena"
+CONFIG_USB_DEVICE_PRODUCT="Si4467 Dongle"

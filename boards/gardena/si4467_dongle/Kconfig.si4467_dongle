@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_SI4467_DONGLE
+	select SOC_NRF52840_QIAA

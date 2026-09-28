@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+identifier: si4467_dongle/nrf52840
+name: Si4467-Dongle-NRF52840
+type: mcu
+arch: arm
+ram: 256
+flash: 1024
+toolchain:
+  - zephyr
+supported:
+  - usb_device
+  - usb_cdc
+  - ble
+  - spi
+  - watchdog
+  - counter
+  - gpio
+vendor: gardena

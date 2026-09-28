@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Every check runs through `scripts/run_checks.py` rather than through its own copy of the
+# commands, so that what CI enforces and what a developer runs cannot drift apart. One check per
+# step, so that GitHub names the one that failed, and each step runs even after an earlier one has
+# failed, so that a push reports every problem rather than the first -- which is what
+# `--keep-going` does for a developer running the script by hand.
+#
+# The two jobs are the script's own split: the checks that need nothing but this repository are
+# cheap, and the ones that need a Zephyr tree pay for a workspace and a toolchain first.
+
+name: checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  tree:
+    name: tree
+    runs-on: ubuntu-latest
+    steps:
+      # GitHub builds a synthetic merge commit for a pull request, whose "Merge a into b" subject
+      # gitlint would reject. The pull request's own tip is the commit that has to pass.
+      - name: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+      # Every checker comes from uv.lock, including clang-format, so this job cannot disagree with
+      # a developer's `uv sync` about what passes.
+      - name: install the checkers
+        run: uv sync --group dev
+      - name: clang-format
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --clang-format
+      - name: ruff
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --ruff
+      - name: ruff-format
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --ruff-format
+      - name: gersemi
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --gersemi
+      - name: yamllint
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --yamllint
+      - name: codespell
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --codespell
+      - name: rumdl
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --rumdl
+      - name: reuse
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --reuse
+      - name: pytest
+        if: '!cancelled()'
+        run: ./scripts/run_checks.py --pytest
+
+  firmware:
+    name: firmware
+    runs-on: ubuntu-latest
+    # Steps run at the workspace top, which is where west belongs; the ones that run the script say
+    # so, because it lives in this repository rather than in the workspace.
+    steps:
+      # A west workspace keeps Zephyr beside the manifest repository rather than inside it, so this
+      # repository goes in a subdirectory and west runs from above it -- the same layout README.md
+      # describes for a developer's machine.
+      - name: checkout
+        uses: actions/checkout@v5
+        with:
+          path: wisun-sniffer
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # west init -l, a shallow west update, Zephyr's Python requirements and a minimal SDK, which
+      # registers itself with cmake so nothing here has to name a path to it. The SDK version comes
+      # from zephyr/SDK_VERSION, so it follows the Zephyr revision in west.yml by itself.
+      #
+      # Only the Arm toolchain is installed. native_sim declares `toolchain: [host, llvm]` and
+      # builds with the runner's own gcc, so nothing here needs a second one -- and the Zephyr CI
+      # container, which carries every architecture's toolchain, does not fit on a hosted runner:
+      # pulling it fails part way through with "no space left on device".
+      - name: set up the west workspace and the Zephyr SDK
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: wisun-sniffer
+          toolchains: arm-zephyr-eabi
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+      # gitlint below has to be the version in uv.lock rather than whichever one Zephyr's
+      # requirements happened to bring in.
+      - name: install the checkers
+        working-directory: wisun-sniffer
+        run: uv sync --group dev
+      # Without this the five checks below would report themselves as skipped, and the job would
+      # pass having built nothing at all.
+      - name: check the workspace really has Zephyr
+        run: test -f zephyr/scripts/checkpatch.pl
+      # gitlint is here rather than in the tree job because our .gitlint points extra-path into the
+      # Zephyr tree for the rules that matter, the DCO one among them, and gitlint will not start
+      # without that directory.
+      - name: gitlint
+        if: '!cancelled()'
+        working-directory: wisun-sniffer
+        run: ./scripts/run_checks.py --gitlint
+      - name: app-yaml
+        if: '!cancelled()'
+        working-directory: wisun-sniffer
+        run: ./scripts/run_checks.py --app-yaml
+      - name: checkpatch
+        if: '!cancelled()'
+        working-directory: wisun-sniffer
+        run: ./scripts/run_checks.py --checkpatch
+      - name: ztest
+        if: '!cancelled()'
+        working-directory: wisun-sniffer
+        run: ./scripts/run_checks.py --ztest
+      - name: build
+        if: '!cancelled()'
+        working-directory: wisun-sniffer
+        run: ./scripts/run_checks.py --build

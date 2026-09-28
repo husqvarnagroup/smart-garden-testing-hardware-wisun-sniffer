@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+mainmenu "Wi-SUN Sniffer App"
+
+config WISUN_SNIFFER_DEFAULT_REGULATORY_DOMAIN
+	int "Wi-SUN regulatory domain to listen in after boot"
+	default 3
+	range 0 15
+	help
+	  The domain decides which channel plans and operating modes may be
+	  combined; Wi-SUN PHY 2.03 table 8. 0 WW, 1 NA, 2 JP, 3 EU, 4 CN, 5 IN,
+	  6 MX, 7 BZ, 8 AU/NZ, 9 KR, 10 PH, 11 MY, 12 HK, 13 SG, 14 TH, 15 VN.
+
+	  The transceiver on the dongle is matched for 863 to 876 MHz, so only the
+	  EU domain is within reach of the hardware.
+
+config WISUN_SNIFFER_DEFAULT_CHAN_PLAN_ID
+	int "Wi-SUN ChanPlanID to listen on after boot"
+	default 32
+	range 0 255
+	help
+	  Fixes the centre frequency of channel zero and the channel spacing;
+	  Wi-SUN PHY 2.03 table 7. ChanPlanID 32 is 863_870_100, so channel zero
+	  is at 863.1 MHz with 100 kHz spacing.
+
+config WISUN_SNIFFER_DEFAULT_PHY_MODE_ID
+	int "Wi-SUN PhyModeID to listen for after boot"
+	default 1
+	range 1 24
+	help
+	  Fixes the symbol rate, the modulation index and whether frames are
+	  forward error corrected; Wi-SUN PHY 2.03 tables 11 and 19. Only the
+	  modes with a modulation index of 0.5 can be programmed: 0x01
+	  (50 ksym/s), 0x03 (100 ksym/s) and 0x05 (150 ksym/s), and their FEC
+	  variants 0x11, 0x13 and 0x15, which are the same rates again.
+
+	  A node using FEC is not heard on the uncoded mode, nor the other way
+	  round, so this has to match the network being listened to. Written
+	  here in decimal because Kconfig has no hex integers: 0x11, 0x13 and
+	  0x15 are 17, 19 and 21.
+
+config WISUN_SNIFFER_DEFAULT_CHANNEL
+	int "Wi-SUN channel to listen on after boot"
+	default 0
+	range 0 255
+	help
+	  Channel number within the configured channel plan. With ChanPlanID 32
+	  the centre frequency is 863.1 MHz + channel * 100 kHz, so channel 0 is
+	  863.1 MHz.
+
+config WISUN_SNIFFER_CAPTURE_BUF_SIZE
+	int "Size of the PCAP-NG capture staging buffer, in octets"
+	default 16384
+	range 2176 65536
+	help
+	  Absorbs bursts of frames that arrive faster than the USB host reads them.
+	  Once it is full, whole frames are dropped rather than blocks truncated, so
+	  the capture stays well formed; "wisun_sniffer stats" counts the drops.
+
+	  Must hold at least one largest possible block: a 2047 octet PSDU, a 44
+	  octet TAP header and 32 octets of block overhead. The default is far above
+	  that minimum on purpose. A drop here is a hole in somebody's capture that
+	  they find out about afterwards, and the dongle has memory to spare, so the
+	  buffer is sized for the worst burst rather than the usual one: about
+	  seven largest-possible frames, or a hundred of the sizes this network
+	  actually sends.
+
+source "Kconfig.zephyr"

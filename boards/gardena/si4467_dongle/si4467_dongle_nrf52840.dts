@@ -1,0 +1,197 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include "si4467_dongle_nrf52840-pinctrl.dtsi"
+
+/ {
+	model = "nRF52840 Si4467 Dongle";
+	compatible = "Gardena,si4467-dongle-nrf52840";
+
+	chosen {
+		zephyr,console = &cdc_acm_uart0;
+		zephyr,shell-uart = &cdc_acm_uart0;
+		zephyr,uart-mcumgr = &cdc_acm_uart0;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	/*
+	 * The following LEDs and buttons exist on all revisions, but are not controlled by the
+	 * nRF52840:
+	 * - reset button directly controls reset
+	 * - power LED is connected to USB VBUS
+	 * - RX/TX LEDs are controlled by Si4467
+	 *
+	 * On revision 0.4.0 and later, there is additional hardware:
+	 * - application LED connected to nRF52840
+	 * - user button connected to nRF52840
+	 *
+	 * Since earlier revisions were manufactured only in small batches (5 pieces each) and the
+	 * corresponding pins are not connected, there is no need for separate board revisions in
+	 * Zephyr and we keep it all in this file.
+	 */
+
+	gpio_clock_test {
+		compatible = "gpio-leds";
+		clock_test_pin0: clock_test0 {
+			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+			label = "clock-test";
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0: led_0 {
+			gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+			label = "Red LED 0";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button0: button_0 {
+			gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+			label = "Push button switch 0";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+
+	aliases {
+		clock-test-pin = &clock_test_pin0;
+		app-led = &led0;
+		user-button = &button0;
+
+		/*
+		 * The following aliases are provided for compatibility with samples (e.g. blinky &
+		 * button samples).
+		 */
+		led0 = &led0;
+		sw0 = &button0;
+	};
+
+};
+
+zephyr_udc0: &usbd {
+	compatible = "nordic,nrf-usbd";
+	status = "okay";
+
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+&uicr {
+	gpio-as-nreset;
+};
+
+&wdt {
+	status = "okay";
+};
+
+&adc {
+	status = "disabled";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+/*
+ * UART via GPIOs for use with MicroJig
+ *
+ * To enable, use DTC_OVERLAY_FILE 'gpio-uart.overlay'.
+ */
+
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&spi0 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	cs-gpios = <&gpio0 13 GPIO_ACTIVE_LOW>; /* Si4467 */
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-1 = <&spi0_sleep>;
+	pinctrl-names = "default", "sleep";
+	si4467: spi-dev-si4467@0 {
+		compatible = "silabs,si4467";
+		spi-max-frequency = <10000000>; /* Si4467 max 10 MHz */
+		xtal-frequency = <26000000>;
+		/*
+		 * The ideal XO tune value for the 26 MHz crystal on the dongle varies between
+		 * about 32 and 38. Since we do not do per-device calibration, a default of about
+		 * 35 is sensible and should keep the frequency within about ±5 ppm of 26 MHz
+		 * (with the default of 42, we are about ±10 ppm off).
+		 */
+		xtal-capacitor-tune-value = <35>;
+		/*
+		 * The following value was determined using a signal generator to evaluate the
+		 * power across all relevant channels and amplitudes.
+		 */
+		rx-rssi-offset = <(-3)>;
+		reg = <0>;
+		gpio-0-gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+		gpio-1-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+		gpio-2-gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+		gpio-3-gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+
+		sdn-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		nirq-gpios = <&gpio1 9 GPIO_ACTIVE_LOW>;
+
+		/* rx-enable-gpios = n/a */
+		/* tx-enable-gpios = n/a */
+		/* nirq-handling-gpios = n/a */
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x000000000 0x00010000>;
+		};
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x000010000 0x0000e8000>;
+		};
+
+		/*
+		 * The flash starting at 0x000f8000 and ending at
+		 * 0x000fffff is reserved for use by the application.
+		 */
+
+		/* 28 kBytes for (user) settings */
+		storage_partition: partition@f8000 {
+			label = "storage";
+			reg = <0x000f8000 0x00007000>;
+		};
+
+		/* 1 page (4k) for factory data */
+		factory_partition: partition@ff000 {
+			label = "factory";
+			reg = <0x000ff000 0x00001000>;
+		};
+	};
+};

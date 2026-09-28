@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 GARDENA GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+board:
+  name: si4467_dongle
+  vendor: gardena
+  socs:
+    - name: nrf52840

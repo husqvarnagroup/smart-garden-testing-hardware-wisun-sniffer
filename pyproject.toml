@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[project]
+name = "wisun-sniffer-tools"
+version = "0.0.2"
+description = "Host-side tooling for the Wi-SUN sniffer dongle"
+requires-python = ">=3.10"
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[dependency-groups]
+# Checkers for `scripts/run_checks.py`, so that `uv sync` gives CI and a developer the same versions
+# (the script looks in .venv before PATH). Exact versions are in uv.lock. clang-format matters most,
+# because two minor versions of it disagree about formatting.
+dev = [
+    # zephyr-keep-sorted-start
+    "clang-format~=19.1",
+    "codespell~=2.4",
+    "gersemi~=0.29",
+    "gitlint-core~=0.19",
+    "pytest~=9.1",
+    "reuse~=6.2",
+    "ruff~=0.16",
+    "rumdl~=0.0.224",
+    "yamllint~=1.38",
+    # zephyr-keep-sorted-stop
+]
+
+[tool.uv]
+# The capture script is a program Wireshark runs through a symlink, not an importable package.
+# There is nothing here to build or install -- uv only manages the environment it runs in.
+package = false
+
+[tool.pytest.ini_options]
+# Prevent bit rot by turning warnings into errors. Justified exceptions can be added as described
+# in https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+filterwarnings = ["error"]
+testpaths = ["application/wisun_sniffer/tools/tests", "scripts/tests"]
+
+# There is deliberately no [tool.ruff] section: .ruff.toml is Zephyr's, and it takes precedence
+# over this file anyway, so a second copy of the settings here could only ever drift out of step
+# with it. Per-file exemptions belong in .ruff-excludes.toml, which .ruff.toml extends.

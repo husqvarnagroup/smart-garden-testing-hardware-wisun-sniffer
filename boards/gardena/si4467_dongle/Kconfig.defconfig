@@ -1,0 +1,44 @@
+# nRF52840/Si4467 Dongle
+#
+# SPDX-FileCopyrightText: Copyright (c) 2023 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+if BOARD_SI4467_DONGLE
+
+if USB_DEVICE_STACK
+
+# Enable UART driver, needed for CDC ACM
+config SERIAL
+	default y
+
+config USB_DEVICE_INITIALIZE_AT_BOOT
+	default y
+
+# We use the Nordic Semiconductor vendor ID for USB. This is semi-officially OK for small series /
+# internal products:
+# - https://devzone.nordicsemi.com/f/nordic-q-a/33851/nrf52840---usb-vendor-id-and-usb-product-id
+# - https://devzone.nordicsemi.com/f/nordic-q-a/50638/usb-pid-for-nrf52840
+#
+# The product ID is randomly chosen in an area where Nordic does not seem to have any products (see
+# http://www.linux-usb.org/usb.ids).
+#
+# Note: vendor ID 0x2fe3 is also listed as Nordic Semiconductor; this is however owned by the Zephyr
+# project and should not be used for own products:
+# https://docs.zephyrproject.org/latest/connectivity/usb/device/usb_device.html#usb-vendor-and-product-identifiers
+config USB_DEVICE_VID
+	default 1915
+
+config USB_DEVICE_PID
+	default B820
+
+endif # USB_DEVICE_STACK
+
+if LOG
+
+# Logger cannot use itself to log
+config USB_CDC_ACM_LOG_LEVEL
+	default 0
+
+endif #LOG
+
+endif # BOARD_SI4467_DONGLE

@@ -1,0 +1,22 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/ {
+	chosen {
+		/*
+		 * Console, log and shell stay on cdc_acm_uart0 (the board default), so the first
+		 * USB interface keeps behaving like every other dongle application. The capture
+		 * stream gets its own interface, because it carries binary PCAP-NG data that must
+		 * not be interleaved with text.
+		 */
+		zephyr,sniffer-uart = &cdc_acm_uart1;
+	};
+};
+
+&usbd {
+	cdc_acm_uart1: cdc_acm_uart1 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};

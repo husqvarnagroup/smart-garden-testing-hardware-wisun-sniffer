@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+sample:
+  name: Wi-SUN Sniffer
+  description: >-
+    Receive Wi-SUN FAN frames with the Si4467 transceiver on the dongle board
+    and stream them to Wireshark as PCAP-NG.
+
+tests:
+  # Starts at the reset vector, so a bare dongle can be flashed with a debug probe and nothing
+  # else. This is the one to develop against.
+  sample.wisun_sniffer:
+    platform_allow: si4467_dongle/nrf52840
+    integration_platforms:
+      - si4467_dongle/nrf52840
+    tags: wisun sniffer si4467
+    build_only: true
+
+  # The same firmware, linked to load through MCUboot so the dongle can be updated over USB DFU.
+  # The image is unsigned and needs no key; see overlays/si4467_dongle-mcuboot.conf.
+  sample.wisun_sniffer.mcuboot:
+    platform_allow: si4467_dongle/nrf52840
+    integration_platforms:
+      - si4467_dongle/nrf52840
+    extra_args:
+      - EXTRA_CONF_FILE=overlays/si4467_dongle-mcuboot.conf
+    tags: wisun sniffer si4467 mcuboot
+    build_only: true

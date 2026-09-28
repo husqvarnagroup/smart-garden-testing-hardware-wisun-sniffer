@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/BlankSpruce/gersemi/master/gersemi/configuration.schema.json
+#
+# SPDX-FileCopyrightText: Copyright (c) 2024 GARDENA GmbH
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Same as for our C code
+indent: 4
+line_length: 100
+
+# Silence warnings about the 150+ Zephyr functions
+warn_about_unknown_commands: false
+
+# We want lines to be short
+list_expansion: favour-expansion

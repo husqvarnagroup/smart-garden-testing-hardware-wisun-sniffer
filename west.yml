@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The west manifest for the Wi-SUN sniffer workspace.
+#
+# See https://docs.zephyrproject.org/latest/develop/west/manifest.html
+
+manifest:
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    # Upstream Zephyr. The allowlist keeps the workspace to what this repository actually reaches:
+    # cmsis_6 and hal_nordic for the nRF52840, mcuboot for the bootloader.
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.2.1
+      path: zephyr
+      west-commands: scripts/west-commands.yml
+      import:
+        name-allowlist:
+          - cmsis_6
+          - hal_nordic
+          - mcuboot
+
+  self:
+    path: wisun-sniffer

@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 GARDENA GmbH
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+tests:
+  wisun_sniffer.fec:
+    tags: wisun_sniffer, fec
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
