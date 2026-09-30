@@ -11,9 +11,24 @@ dependencies = [
 ]
 
 [dependency-groups]
+# Every checker `scripts/run_checks.py` runs that can be installed from PyPI, so that `uv sync`
+# gives CI and a developer the same versions -- the script looks in .venv before PATH. The exact
+# versions are in uv.lock, which is what makes a run reproducible; the bounds here only keep a
+# resolution from crossing a major. clang-format is the one that matters most, because two minor
+# versions of it disagree about formatting, and an unpinned one would reformat the tree from under
+# whoever ran it last.
 dev = [
-    "pytest>=8.0",
-    "ruff>=0.6",
+    # zephyr-keep-sorted-start
+    "clang-format~=19.1",
+    "codespell~=2.4",
+    "gersemi~=0.29",
+    "gitlint~=0.19",
+    "pytest~=9.1",
+    "reuse~=6.2",
+    "ruff~=0.16",
+    "rumdl~=0.0.224",
+    "yamllint~=1.38",
+    # zephyr-keep-sorted-stop
 ]
 
 [tool.uv]

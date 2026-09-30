@@ -192,6 +192,17 @@ def test_every_check_has_a_usable_option_name(run_checks):
     assert all(name == name.lower() and " " not in name for name in names)
 
 
+def test_gitlint_is_marked_as_needing_zephyr(run_checks):
+    """Our .gitlint sets extra-path into the Zephyr tree, so gitlint cannot run without one.
+
+    Marked rather than merely documented because the failure is a config error
+    rather than a skip, and a CI job without a workspace reports it as ours.
+    """
+    gitlint = next(check for check in run_checks.CHECKS if check.name == "gitlint")
+
+    assert gitlint.needs_zephyr
+
+
 def test_zephyr_checks_come_last(run_checks):
     """The ordering the module docstring promises: cheap first, Zephyr last."""
     flags = [check.needs_zephyr for check in run_checks.CHECKS]

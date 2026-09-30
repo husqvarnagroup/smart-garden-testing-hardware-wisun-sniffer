@@ -34,11 +34,22 @@ cannot tell you, including which vendor documentation is wrong.
 - Commit subjects are `<area>: <imperative>`, with sub-areas where they help:
   `application: wisun_sniffer: ...`, `boards: dongle: ...`, `doc: ...`. The body says *why*.
 - Every commit needs a `Signed-off-by:` line: `.gitlint` is Zephyr's and enforces the DCO, so
-  commit with `git commit -s` rather than plain `git commit`.
+  commit with `git commit -s` rather than plain `git commit`. That rule comes from
+  `extra-path=../zephyr/scripts/gitlint`, so `--gitlint` needs a west workspace as much as the
+  build checks do — gitlint exits with a config error rather than a violation when the directory is
+  missing, which reads like a broken `.gitlint` and is not one.
 - `scripts/run_checks.py --all --keep-going` runs all of the above in one go and is the quickest
   way to see where a change stands; `--list` names the individual checks. It deliberately hands
   `application/wisun_sniffer/src/ext/` to neither clang-format nor checkpatch, because those files
   are generated and vendor-derived and would drown the output in findings nobody may act on.
+- **A new check needs a step in `.github/workflows/checks.yml` as well.** Both jobs name their
+  checks one per step, so that GitHub says which one failed; neither discovers a check by itself,
+  and one left out is silently never run in CI. Put it in the `firmware` job if it needs a Zephyr
+  tree and in `tree` otherwise.
+- The checkers are pinned in `pyproject.toml`'s `dev` group and locked in `uv.lock`, and
+  `run_checks.py` looks in `.venv/bin` before `PATH`. So after `uv sync` the versions are the ones
+  CI uses — including `clang-format`, where a version difference is a diff. Bumping one is a
+  deliberate act with its own commit, not something to do in passing while fixing a finding.
 
 ## Checks that do not currently pass on this machine
 

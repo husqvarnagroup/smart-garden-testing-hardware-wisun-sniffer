@@ -10,8 +10,8 @@ there is no value in spending minutes building the firmware to tell you about a
 formatting problem that a two-second run of clang-format would have found.
 `--keep-going` runs them all anyway.
 
-The checks split in two. Those above `--app-yaml` need nothing but this
-repository and the tools it can reach; those from `--app-yaml` down need the
+The checks split in two. Those above `--gitlint` need nothing but this
+repository and the tools it can reach; those from `--gitlint` down need the
 Zephyr tree that `west update` puts beside it, and are skipped with a note when
 it is missing rather than reported as failures, because an un-updated workspace
 is an environment problem and not something a commit can fix.
@@ -227,15 +227,6 @@ def check_reuse(fix: bool) -> Result:
     return Result(code == 0, out)
 
 
-def check_gitlint(fix: bool) -> Result:
-    code, _ = run(["git", "rev-parse", "--verify", "HEAD"])
-    if code != 0:
-        return Result(True, skipped="no commits yet")
-
-    code, out = run([*tool("gitlint"), "--commit", "HEAD"])
-    return Result(code == 0, out)
-
-
 def check_pytest(fix: bool) -> Result:
     """Run the host-side capture script's tests.
 
@@ -259,6 +250,27 @@ def check_pytest(fix: bool) -> Result:
 # --------------------------------------------------------------------------
 # Checks that need a Zephyr tree
 # --------------------------------------------------------------------------
+
+
+def check_gitlint(fix: bool) -> Result:
+    """Check the message of HEAD against .gitlint, which is Zephyr's.
+
+    This one is in this half of the file for a reason that is easy to miss: our
+    .gitlint sets `extra-path=../zephyr/scripts/gitlint`, and gitlint refuses to
+    start at all when that directory is absent. Those are the rules worth having
+    -- SignedOffBy is the DCO check, TitleStartsWithSubsystem is the `<area>:`
+    one -- so overriding extra-path to run without them would pass the commits
+    this is meant to catch.
+    """
+    base = zephyr_base()
+    assert base is not None
+
+    code, _ = run(["git", "rev-parse", "--verify", "HEAD"])
+    if code != 0:
+        return Result(True, skipped="no commits yet")
+
+    code, out = run([*tool("gitlint"), "--commit", "HEAD"])
+    return Result(code == 0, out)
 
 
 VALIDATE_SNIPPET = """
@@ -456,8 +468,8 @@ CHECKS: list[Check] = [
     Check("codespell", "spelling", check_codespell),
     Check("rumdl", "Markdown linting", check_rumdl),
     Check("reuse", "copyright and license declarations", check_reuse),
-    Check("gitlint", "commit message of HEAD", check_gitlint),
     Check("pytest", "host-side capture script tests", check_pytest),
+    Check("gitlint", "commit message of HEAD", check_gitlint, True),
     Check("app-yaml", "scenario files against twister's schema", check_app_yaml, True),
     Check("checkpatch", "Zephyr's checkpatch.pl", check_checkpatch, True),
     Check("ztest", "ztest suites on native_sim", check_ztest, True),

@@ -137,11 +137,44 @@ scripts/run_checks.py --all --fix            # fixes what can be fixed in place
 scripts/run_checks.py --clang-format --ruff  # just these two
 ```
 
-Checks are ordered cheapest first, and the last four need the Zephyr tree beside this repository;
-without it they are reported as skipped rather than failed. Tools that are neither on `PATH` nor in
-`.venv/` are fetched on demand through `uv run --no-project --with`, so nothing has to be installed
-by hand for the script to work. `scripts/tests/` covers its file selection, and runs with the rest
-of the Python tests under `uv run pytest`.
+Checks are ordered cheapest first, and the last five need the Zephyr tree beside this repository;
+without it they are reported as skipped rather than failed. `--gitlint` is one of those five, which
+is easy to miss: `.gitlint` sets `extra-path` to `../zephyr/scripts/gitlint`, where the rule that
+enforces the sign-off lives, and gitlint will not start without that directory. `scripts/tests/` covers the script's
+file selection, and runs with the rest of the Python tests under `uv run pytest`.
+
+`uv sync` installs every checker the script uses, `clang-format` included, at the versions in
+`uv.lock`:
+
+```console
+uv sync
+```
+
+The script looks there before it looks at `PATH`, so a synced checkout and CI agree on what passes
+— which matters most for `clang-format`, since two of its minor versions disagree about formatting.
+Anything it still cannot find is fetched on demand through `uv run --no-project --with`, so the
+script also works in a checkout that has not been synced.
+
+## Continuous integration
+
+`.github/workflows/checks.yml` runs the same script rather than its own copy of the commands, one
+check per step so that GitHub names the one that failed. The two jobs are the script's own split:
+
+| Job        | Checks                                                | Needs                                  |
+|------------|-------------------------------------------------------|----------------------------------------|
+| `tree`     | the nine that need only this repository               | `uv sync`                              |
+| `firmware` | `gitlint`, `app-yaml`, `checkpatch`, `ztest`, `build` | a west workspace and the Arm toolchain |
+
+Every check step runs even after an earlier one has failed, so one push reports every problem rather
+than the first — what `--keep-going` does for the script run by hand.
+
+The `firmware` job builds the workspace the way this README describes, this repository in a
+subdirectory with `west init -l` and `west update` above it, using
+[`action-zephyr-setup`](https://github.com/zephyrproject-rtos/action-zephyr-setup). It takes the SDK
+version from `zephyr/SDK_VERSION`, so that follows the Zephyr revision in `west.yml` by itself, and
+installs only `arm-zephyr-eabi` — `native_sim` builds with the runner's own compiler. Zephyr's own
+CI container is not used: it carries every architecture's toolchain and does not fit in a hosted
+runner's disk.
 
 `.ruff.toml` extends `.ruff-excludes.toml`, which is this repository's own and holds the per-file
 rule exemptions — the same mechanism Zephyr uses for code that predates a rule. Fixing a finding
