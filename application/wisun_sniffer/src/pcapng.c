@@ -98,7 +98,7 @@ static struct ring_buf tx_ring;
 /** Wakes the drain thread when a block has been staged. */
 static K_SEM_DEFINE(tx_pending, 0, 1);
 
-/** Frames dropped because the staging buffer was full, reported by "wisun_sniffer stats". */
+/** Frames dropped with a reader attached because the staging buffer was full; see "stats". */
 static uint32_t dropped;
 
 /**
@@ -127,6 +127,12 @@ static void emit(const uint8_t *data, size_t len)
 
 /** How long to wait for the USB transfer in flight to finish before looking again. */
 #define TX_BUSY_POLL K_MSEC(1)
+
+/**
+ * The same, with no reader attached. The transfer then stays in flight until one is, so looking
+ * every millisecond would only wake this thread a thousand times a second for nothing.
+ */
+#define TX_IDLE_POLL K_MSEC(100)
 
 /**
  * @brief Move staged octets into the USB stack.
@@ -164,7 +170,7 @@ static void tx_thread_fn(void *p1, void *p2, void *p3)
 
 		space = uart_irq_tx_ready(capture_uart);
 		if (space <= 0) {
-			k_sleep(TX_BUSY_POLL);
+			k_sleep(host_attached ? TX_BUSY_POLL : TX_IDLE_POLL);
 			continue;
 		}
 
@@ -349,7 +355,13 @@ void pcapng_write_packet(uint64_t timestamp_us, const uint8_t *header, size_t he
 	 * one containing half a block does not, and cannot be recovered from either.
 	 */
 	if (!reserve(block_len)) {
-		dropped++;
+		/*
+		 * Only counted while a reader is attached: with none, the buffer fills and stays
+		 * full, and what is dropped then was never going to reach anyone.
+		 */
+		if (host_attached) {
+			dropped++;
+		}
 		k_mutex_unlock(&stream_lock);
 		return;
 	}
