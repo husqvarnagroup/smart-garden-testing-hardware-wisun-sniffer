@@ -364,6 +364,10 @@ def console_command(serial_number, command, expect, timeout=2.0, attempts=CONSOL
 
     with open_port(path) as console:
         for _ in range(attempts):
+            # The attempts add up to seconds, which a stop request must not have to sit out.
+            if stop_requested:
+                break
+
             # Whatever is already in the buffer belongs to the boot, to the log, or to an attempt
             # that went unanswered, and matching against any of it would answer the wrong question.
             console.reset_input_buffer()
@@ -374,7 +378,7 @@ def console_command(serial_number, command, expect, timeout=2.0, attempts=CONSOL
             reply = bytearray()
             text = ""
 
-            while time.monotonic() < deadline:
+            while time.monotonic() < deadline and not stop_requested:
                 reply.extend(console.read(256))
                 text = ANSI_ESCAPE.sub("", reply.decode(errors="replace"))
                 said = console_reply(text)
@@ -1287,6 +1291,10 @@ def capture(serial_number, fifo, path, phy, host_timestamps, controls=None):
     if phy:
         log("setting the PHY to domain {} plan {} mode {} channel {}".format(*phy))
         error = set_phy(serial_number, *phy)
+        if stop_requested:
+            # Not an error: Wireshark was closed while the PHY was being set.
+            log("stopped while setting the PHY")
+            return
         if error:
             warn(error)
 

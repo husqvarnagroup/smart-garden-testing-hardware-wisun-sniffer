@@ -716,6 +716,11 @@ with `ENXIO` until a reader is there, turning the wait into a loop that can be g
 end closes, with nothing having to be written. A capture written to a file gets none of this and
 needs none of it.
 
+`console_command()` is bounded but slow: `CONSOLE_ATTEMPTS` of two seconds each against a console
+that does not answer. It checks `stop_requested` between reads, or a Wireshark closed right after
+starting a capture waits out `set_phy()`'s retries — measured at 5.5 s — and then shows their
+failure as the capture's error.
+
 The numbers to regress against, measured in the GUI: the extcap program is gone 0.2 to 0.3 s after
 `Requesting stop`, and closing Wireshark while it is capturing takes about half a second from the
 click to the process exiting.
