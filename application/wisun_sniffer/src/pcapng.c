@@ -308,7 +308,11 @@ bool pcapng_write_section_header(void)
 	put_u16(&b, 0); /* Reserved */
 	put_u32(&b, SNAPLEN);
 	put_string_option(&b, OPT_IF_NAME, "wisun0");
-	put_string_option(&b, OPT_IF_DESCRIPTION, "Wi-SUN FAN EU ChanPlanID 32 PhyModeID 1");
+	/*
+	 * No PHY here: it can change in the middle of a section, so each frame's TAP header is
+	 * where its channel and bit rate are.
+	 */
+	put_string_option(&b, OPT_IF_DESCRIPTION, "Wi-SUN FAN");
 	put_option(&b, OPT_IF_TSRESOL, &(uint8_t){IF_TSRESOL_MICROSECONDS}, 1);
 	end_block(&b);
 
