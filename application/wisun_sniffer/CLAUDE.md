@@ -296,7 +296,8 @@ and neither was what it looked like.
   `RX_FIFO_THRESHOLD`, and a coded length is almost never a multiple of sixteen, so the last few
   octets sit there until the silence after the frame has been demodulated into the FIFO too: up to
   1.3 ms of air time, spent deaf, in exactly the window the reply arrives in. `drain_tail()` polls
-  them out once the PHY header has given the length. **Bound that poll by air time, not by a count
+  them out once fewer than `RX_FIFO_THRESHOLD` are outstanding — not as soon as the PHY header
+  gives the length, which spins the cooperative receive thread through the whole frame. **Bound that poll by air time, not by a count
   of polls** — sized as a count it came to just under eight octets' worth, and the frames leaving
   exactly that much outstanding gave up a moment before their last octets landed, which is how the
   169 octet half of a ping exchange lost its acknowledgment while the 142 octet half kept one.
