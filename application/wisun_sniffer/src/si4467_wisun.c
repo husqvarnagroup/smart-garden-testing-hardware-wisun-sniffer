@@ -1522,6 +1522,22 @@ static void dump_raw(const char *reason, size_t received)
 	printk("RAW %s rssi=%d n=%zu %s\n", reason, rx_frame.rssi_dbm, received, line);
 }
 
+/**
+ * @brief Log the code symbols collected for one coded reception attempt, in raw mode.
+ *
+ * In chunks: one hex dump of a whole capture is a single log message larger than
+ * CONFIG_LOG_BUFFER_SIZE, and would be discarded exactly like the printk line dump_raw() uses.
+ */
+static void dump_coded(const char *reason, size_t captured)
+{
+	LOG_INF("coded %s: %zu octets, rssi %d dBm", reason, captured, rx_frame.rssi_dbm);
+
+	for (size_t off = 0; off < captured; off += 256) {
+		LOG_HEXDUMP_INF(&coded_frame[coded_slot][off], MIN((size_t)256, captured - off),
+				"coded");
+	}
+}
+
 /** @brief Restart reception after a frame or an error. */
 static void restart_rx(void)
 {
@@ -1711,7 +1727,9 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 		 * ever without being counted.
 		 */
 		if (ctx.receiving && k_uptime_get() > rx_deadline) {
-			if (ctx.raw) {
+			if (ctx.raw && ctx.fec) {
+				dump_coded("timeout", received);
+			} else if (ctx.raw) {
 				dump_raw("timeout", received);
 			}
 
@@ -1908,18 +1926,7 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 			restart_rx();
 
 			if (ctx.raw) {
-				LOG_INF("coded capture: %zu octets, rssi %d dBm", captured,
-					rx_frame.rssi_dbm);
-
-				/*
-				 * In chunks: one hex dump of a whole capture is a single log
-				 * message larger than CONFIG_LOG_BUFFER_SIZE, and would be
-				 * discarded exactly like the printk line it replaced.
-				 */
-				for (size_t off = 0; off < captured; off += 256) {
-					LOG_HEXDUMP_INF(&coded_frame[coded_slot][off],
-							MIN((size_t)256, captured - off), "coded");
-				}
+				dump_coded("capture", captured);
 			} else if (coded_len == 0) {
 				/* Reached the cap without a header to explain it, so there was no
 				 * frame here.
