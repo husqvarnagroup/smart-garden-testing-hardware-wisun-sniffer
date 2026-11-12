@@ -406,6 +406,7 @@ static int cmd_plan(const struct shell *sh, size_t argc, char **argv)
 	unsigned long value;
 	uint8_t plan_id;
 	uint8_t mode_id;
+	uint8_t channel;
 
 	if (argc < 2) {
 		shell_print(sh, "chan plan: %u (%s), %u.%03u MHz + n * %u kHz, %u channels",
@@ -442,6 +443,7 @@ static int cmd_plan(const struct shell *sh, size_t argc, char **argv)
 
 	plan_id = (uint8_t)value;
 	mode_id = phy->mode->id;
+	channel = phy->channel;
 
 	/* Keep the operating mode if the new plan allows it, otherwise take its first usable one.
 	 */
@@ -460,7 +462,17 @@ static int cmd_plan(const struct shell *sh, size_t argc, char **argv)
 		}
 	}
 
-	return select_phy(sh, phy->domain->code, plan_id, mode_id, phy->channel);
+	/* Keep the channel if the new plan has it, otherwise take the nearest one it does have. */
+	{
+		const struct wisun_chan_plan *plan = wisun_phy_plan(plan_id);
+
+		if (plan != NULL && wisun_phy_num_channels(plan) > 0 &&
+		    channel >= wisun_phy_num_channels(plan)) {
+			channel = (uint8_t)(wisun_phy_num_channels(plan) - 1);
+		}
+	}
+
+	return select_phy(sh, phy->domain->code, plan_id, mode_id, channel);
 }
 
 static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
