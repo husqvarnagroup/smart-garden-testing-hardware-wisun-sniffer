@@ -184,17 +184,12 @@ static const struct gpio_dt_spec si4467_nirq = GPIO_DT_SPEC_GET(SI4467_NODE, nir
 #define RAW_DUMP_MAX_OCTETS 512
 
 /**
- * How many coded octets to take off a coded PHY before ending the reception.
+ * How many coded octets to take off a coded PHY when no PHY header says how many to expect.
  *
- * On a coded PHY nothing in the transceiver knows where a frame ends: the length in the PHY header
- * is inside the convolutional code, and describes the frame before it was encoded in any case. The
- * field is therefore given this fixed size and the reception ends when it has been filled.
- *
- * Until the decoder is in the receive path this is a fixed count rather than the frame's real
- * length: it is what @c raw 1 needs to get code symbols off the air and onto a host, which is what
- * has to happen before the decoder can be trusted against anything real. It matches
+ * That is every reception in @c raw 1, which only gets code symbols onto a host, and a reception
+ * whose header never decodes, which is then counted as a bad PHY header. It matches
  * @ref RAW_DUMP_MAX_OCTETS so that a dump is never truncated, and at rate 1/2 it spans a frame of
- * about 250 octets.
+ * about 250 octets. A frame with a header is collected to its own length instead.
  */
 #define CODED_CAPTURE_OCTETS 512
 
@@ -206,6 +201,9 @@ static const struct gpio_dt_spec si4467_nirq = GPIO_DT_SPEC_GET(SI4467_NODE, nir
  * the decode does, as soon as the PHY header says how long the frame really is.
  */
 #define MAX_CODED_LEN WISUN_FEC_MAX_CODED_OCTETS
+
+/* START_RX:RX_LEN and PKT_FIELD_1_LENGTH are 13 bits wide. */
+BUILD_ASSERT(MAX_CODED_LEN <= 0x1FFF, "coded receive field too long for the transceiver");
 
 /*
  * PHY header fields, as a 16-bit value; IEEE 802.15.4-2020 figure 19-4. decode_phr() takes the
@@ -605,7 +603,7 @@ static int si4467_start_rx(uint8_t channel)
 	 * read, and zero there is a zero length packet rather than "decide for yourself": the sync
 	 * word matched and then nothing was ever drained. State the length instead.
 	 */
-	const uint16_t rx_len = ctx.fec ? CODED_CAPTURE_OCTETS : 0;
+	const uint16_t rx_len = ctx.fec ? MAX_CODED_LEN : 0;
 	const uint8_t args[] = {
 		channel, /* CHANNEL */
 		0x00,    /* CONDITION: start immediately */
@@ -891,14 +889,8 @@ static int si4467_configure_framing(bool fec)
 	 * coded frame ends.
 	 */
 	static const uint8_t rx_fields_uncoded[] = {0x00, 0x02, 0x04, 0xC0, 0x07, 0xFF, 0x00, 0x00};
-	static const uint8_t rx_fields_coded[] = {CODED_CAPTURE_OCTETS >> 8,
-						  CODED_CAPTURE_OCTETS & 0xFF,
-						  0x00,
-						  0x00,
-						  0x00,
-						  0x00,
-						  0x00,
-						  0x00};
+	static const uint8_t rx_fields_coded[] = {
+		MAX_CODED_LEN >> 8, MAX_CODED_LEN & 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	const uint8_t sync[] = {fec ? SFD_CODED_FIRST : SFD_UNCODED_FIRST, SFD_SECOND};
 	int ret;
 
@@ -1929,7 +1921,19 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 			continue;
 		}
 
-		if (complete) {
+		if (complete && ctx.fec) {
+			/*
+			 * The receive field is longer than any coded frame, so the transceiver
+			 * ending a coded reception itself means it was cut short. Nothing in
+			 * rx_frame describes it: that is the uncoded path's buffer.
+			 */
+			LOG_WRN("coded reception ended by the transceiver after %zu octets",
+				received);
+			ctx.stats.bad_length++;
+			received = 0;
+			coded_target = 0;
+			restart_rx();
+		} else if (complete) {
 			ctx.receiving = false;
 
 			if (ctx.raw) {
