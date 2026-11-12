@@ -813,8 +813,9 @@ def forward(port, out, settings):
             # waiting for the next frame to push the held ones out.
             stream.feed(port.read(4096))
     except (BrokenPipeError, OSError) as err:
-        # The reader going away is the normal way a capture ends.
-        if getattr(err, "errno", None) not in (errno.EPIPE, errno.EBADF, None):
+        # The reader going away is the normal way a capture ends. pyserial reports a dongle that
+        # has gone with no errno at all, and that is anything but.
+        if getattr(err, "errno", None) not in (errno.EPIPE, errno.EBADF):
             warn(f"capture stopped: {err}")
 
     try:
