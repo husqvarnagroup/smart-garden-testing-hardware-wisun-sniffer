@@ -2036,6 +2036,19 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 }
 
 /**
+ * @brief Count something from the decoder thread.
+ *
+ * The receive thread increments the same counters and can preempt this one, so an increment it
+ * lands between this thread's load and store would otherwise be lost.
+ */
+static void count_from_decoder(uint32_t *counter)
+{
+	k_sched_lock();
+	(*counter)++;
+	k_sched_unlock();
+}
+
+/**
  * @brief Turn collected code symbols into frames, off the thread that has to keep listening.
  *
  * Preemptible and below the receive thread, which is cooperative, so a frame arriving always
@@ -2078,7 +2091,7 @@ static void decode_thread_fn(void *p1, void *p2, void *p3)
 		if (wisun_fec_decode(coded_frame[job.slot], job.len, decoded_frame,
 				     sizeof(decoded_frame), &decoded_len, &corrections)) {
 			LOG_WRN("a coded frame of %zu octets would not decode", job.len);
-			ctx.stats.bad_length++;
+			count_from_decoder(&ctx.stats.bad_length);
 			continue;
 		}
 
@@ -2093,7 +2106,7 @@ static void decode_thread_fn(void *p1, void *p2, void *p3)
 				"(rssi %d "
 				"dBm)",
 				job.len, corrections, job.rssi_dbm);
-			ctx.stats.bad_phr++;
+			count_from_decoder(&ctx.stats.bad_phr);
 			continue;
 		}
 
@@ -2411,9 +2424,10 @@ const struct si4467_wisun_stats *si4467_wisun_get_stats(void)
 void si4467_wisun_reset_stats(void)
 {
 	/*
-	 * The receive thread is the only other writer and each counter is a word it increments on
-	 * its own, so the most a reset arriving mid-frame can cost is one increment. Stopping
-	 * reception to close that window would lose whole frames to save a count.
+	 * The receive and decoder threads are the only other writers and each counter is a word
+	 * they increment on its own, so the most a reset arriving mid-frame can cost is one
+	 * increment. Stopping reception to close that window would lose whole frames to save a
+	 * count.
 	 */
 	memset(&ctx.stats, 0, sizeof(ctx.stats));
 }
