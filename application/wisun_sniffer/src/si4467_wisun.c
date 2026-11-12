@@ -243,6 +243,16 @@ enum {
 static K_EVENT_DEFINE(rx_events);
 
 /**
+ * Held by the receive thread for each pass over the transceiver, and by every caller that changes
+ * what it is receiving.
+ *
+ * The receive thread is cooperative and above the shell, so it can wake in the middle of a PHY
+ * change or an RSSI measurement and restart reception between two of its commands. spi_lock only
+ * keeps single commands whole; this keeps those sequences whole.
+ */
+static K_MUTEX_DEFINE(radio_lock);
+
+/**
  * How many received frames may be waiting on the decoder at once.
  *
  * This is the depth of burst the receive path can absorb without dropping anything, and a burst is
@@ -1296,7 +1306,7 @@ bool si4467_wisun_can_tune(uint32_t freq_khz)
 	return lookup_synth_band(freq_khz * 1000, &band, &outdiv) == 0;
 }
 
-int si4467_wisun_set_phy(const struct si4467_wisun_phy *phy)
+static int set_phy_locked(const struct si4467_wisun_phy *phy)
 {
 	const uint32_t freq0_hz = phy->center_freq0_khz * 1000;
 	uint8_t band, outdiv;
@@ -1378,6 +1388,17 @@ int si4467_wisun_set_phy(const struct si4467_wisun_phy *phy)
 	}
 
 	return 0;
+}
+
+int si4467_wisun_set_phy(const struct si4467_wisun_phy *phy)
+{
+	int ret;
+
+	k_mutex_lock(&radio_lock, K_FOREVER);
+	ret = set_phy_locked(phy);
+	k_mutex_unlock(&radio_lock);
+
+	return ret;
 }
 
 const struct si4467_wisun_phy_actual *si4467_wisun_get_phy_actual(void)
@@ -1660,17 +1681,23 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
+	/* Released only while waiting, so that every pass, whichever way it ends, holds it. */
+	k_mutex_lock(&radio_lock, K_FOREVER);
+
 	while (true) {
 		uint8_t ph_pend, modem_pend, chip_pend;
 		uint32_t events;
 		uint8_t available = 0;
 		uint8_t complete;
 
+		k_mutex_unlock(&radio_lock);
 		events = k_event_wait(&rx_events, EVENT_NIRQ | EVENT_STOP, false,
 				      ctx.receiving ? K_MSEC(50) : K_FOREVER);
+		k_mutex_lock(&radio_lock, K_FOREVER);
 		k_event_clear(&rx_events, events);
 
 		if (events & EVENT_STOP) {
+			k_mutex_unlock(&radio_lock);
 			return;
 		}
 
@@ -2216,11 +2243,12 @@ void si4467_wisun_set_rx_callback(si4467_wisun_rx_cb_t cb, void *user_data)
 	ctx.rx_cb_user_data = user_data;
 }
 
-int si4467_wisun_start(uint8_t channel)
+static int start_locked(uint8_t channel)
 {
 	int ret;
 
 	ctx.channel = channel;
+	ctx.receiving = false;
 
 	ret = si4467_fifo_info(true, NULL);
 	if (ret) {
@@ -2239,24 +2267,45 @@ int si4467_wisun_start(uint8_t channel)
 	return 0;
 }
 
+int si4467_wisun_start(uint8_t channel)
+{
+	int ret;
+
+	k_mutex_lock(&radio_lock, K_FOREVER);
+	ret = start_locked(channel);
+	k_mutex_unlock(&radio_lock);
+
+	return ret;
+}
+
 int si4467_wisun_stop(void)
 {
-	int ret = si4467_change_state(STATE_READY);
+	int ret;
 
+	k_mutex_lock(&radio_lock, K_FOREVER);
+	ret = si4467_change_state(STATE_READY);
 	ctx.running = false;
 	ctx.receiving = false;
+	k_mutex_unlock(&radio_lock);
 
 	return ret;
 }
 
 int si4467_wisun_set_channel(uint8_t channel)
 {
-	if (!ctx.running) {
+	int ret = 0;
+
+	k_mutex_lock(&radio_lock, K_FOREVER);
+
+	if (ctx.running) {
+		ret = start_locked(channel);
+	} else {
 		ctx.channel = channel;
-		return 0;
 	}
 
-	return si4467_wisun_start(channel);
+	k_mutex_unlock(&radio_lock);
+
+	return ret;
 }
 
 uint8_t si4467_wisun_get_channel(void)
@@ -2299,31 +2348,42 @@ int si4467_wisun_get_part_info(struct si4467_wisun_part_info *info)
 int si4467_wisun_measure_rssi(uint8_t channel, int16_t *rssi_dbm)
 {
 	uint8_t curr_rssi = 0;
+	uint8_t ph_pend, modem_pend, chip_pend;
 	int ret;
 
+	k_mutex_lock(&radio_lock, K_FOREVER);
+
+	/* A frame being received is lost either way; it is not a timeout. */
+	ctx.receiving = false;
+
 	ret = si4467_start_rx(channel);
-	if (ret) {
-		return ret;
+	if (ret == 0) {
+		/* Give the AGC time to settle before sampling. */
+		k_msleep(2);
+
+		ret = si4467_get_modem_status(false, &curr_rssi, NULL, NULL);
 	}
 
-	/* Give the AGC time to settle before sampling. */
-	k_msleep(2);
-
-	ret = si4467_get_modem_status(false, &curr_rssi, NULL, NULL);
-	if (ret) {
-		return ret;
+	if (ret == 0) {
+		*rssi_dbm = rssi_raw_to_dbm(curr_rssi);
 	}
 
-	*rssi_dbm = rssi_raw_to_dbm(curr_rssi);
+	/*
+	 * Anything heard during the measurement was on @p channel, so it must not reach the
+	 * receive thread as a frame on ctx.channel.
+	 */
+	(void)si4467_get_int_status(&ph_pend, &modem_pend, &chip_pend);
 
 	/* Put the receiver back where it was. */
 	if (ctx.running) {
-		(void)si4467_start_rx(ctx.channel);
+		restart_rx();
 	} else {
 		(void)si4467_change_state(STATE_READY);
 	}
 
-	return 0;
+	k_mutex_unlock(&radio_lock);
+
+	return ret;
 }
 
 void si4467_wisun_set_raw(bool raw)
