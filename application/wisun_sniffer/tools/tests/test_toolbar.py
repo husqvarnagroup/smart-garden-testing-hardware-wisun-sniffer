@@ -587,3 +587,54 @@ def test_stopping_works_with_a_toolbar_in_the_picture(session):
 
     assert err == "", "Wireshark shows anything on stderr as the reason the capture ended"
     assert out == "", "stdout is the capture stream when there is no fifo"
+
+
+def test_stopping_while_the_phy_is_being_set(script_path, tmp_path):
+    """Closing Wireshark right after starting a capture lands in set_phy(), whose console retries
+    add up to seconds. A stop must cut them short, and quietly: it is not the firmware's fault."""
+    # Ptys with nothing behind them: a console that never answers, so the script is still waiting
+    # on it when the stop arrives.
+    ptys = [os.openpty(), os.openpty()]
+
+    byid = tmp_path / "byid"
+    byid.mkdir()
+    for suffix, (_, slave) in zip(("if00", "if02"), ptys, strict=True):
+        os.symlink(os.ttyname(slave), byid / f"usb-Gardena_Wi-SUN_Sniffer_Dongle_{SERIAL}-{suffix}")
+
+    fifo = tmp_path / "fifo"
+    os.mkfifo(fifo, 0o600)
+
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            sandbox(script_path, str(tmp_path)),
+            "--extcap-interface",
+            f"wisun-{SERIAL}",
+            "--capture",
+            "--fifo",
+            str(fifo),
+            "--domain",
+            "3",
+            "--chan-plan",
+            "32",
+            "--phy-mode",
+            "1",
+            "--channel",
+            "0",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    time.sleep(0.5)
+
+    started = time.monotonic()
+    child.send_signal(signal.SIGTERM)
+    out, err = child.communicate(timeout=30)
+    elapsed = time.monotonic() - started
+
+    for fd in (fd for pair in ptys for fd in pair):
+        os.close(fd)
+
+    assert elapsed < 1.0
+    assert err.decode(errors="replace").strip() == "", "a stop is not an error"
+    assert out == b""
