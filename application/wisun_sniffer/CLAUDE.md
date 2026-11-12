@@ -297,10 +297,11 @@ and neither was what it looked like.
   octets sit there until the silence after the frame has been demodulated into the FIFO too: up to
   1.3 ms of air time, spent deaf, in exactly the window the reply arrives in. `drain_tail()` polls
   them out once fewer than `RX_FIFO_THRESHOLD` are outstanding — not as soon as the PHY header
-  gives the length, which spins the cooperative receive thread through the whole frame. **Bound that poll by air time, not by a count
-  of polls** — sized as a count it came to just under eight octets' worth, and the frames leaving
-  exactly that much outstanding gave up a moment before their last octets landed, which is how the
-  169 octet half of a ping exchange lost its acknowledgment while the 142 octet half kept one.
+  gives the length, which spins the cooperative receive thread through the whole frame. **Bound
+  that poll by air time, not by a count of polls** — sized as a count it came to just under eight
+  octets' worth, and the frames leaving exactly that much outstanding gave up a moment before their
+  last octets landed, which is how the 169 octet half of a ping exchange lost its acknowledgment
+  while the 142 octet half kept one.
 - **The decoder needs one more buffer than the job queue can hold.** A frame taken off the queue is
   no longer on it but is still being read, so what is alive at once is the queue's capacity plus
   the one in flight. With the two equal, the receive thread's next slot is the one the decoder is
