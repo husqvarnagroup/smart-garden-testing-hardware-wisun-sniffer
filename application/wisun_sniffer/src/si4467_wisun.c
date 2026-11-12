@@ -1837,11 +1837,13 @@ static void rx_thread_fn(void *p1, void *p2, void *p3)
 		}
 
 		/*
-		 * Once the length is known the rest of the frame is a wait for a known number of
-		 * octets, and waiting for it on interrupts costs more than the reply that follows
-		 * it allows. See drain_tail().
+		 * Once fewer octets are outstanding than raise a FIFO interrupt, nothing announces
+		 * them, and waiting for the silence after the frame to do so costs more than the
+		 * reply that follows it allows. See drain_tail(). Not any earlier: the poll spins
+		 * this cooperative thread, and the bulk of a long frame arrives on interrupts.
 		 */
-		if (ctx.fec && ctx.receiving && coded_target != 0 && received < coded_target) {
+		if (ctx.fec && ctx.receiving && coded_target != 0 && received < coded_target &&
+		    coded_target - received < RX_FIFO_THRESHOLD) {
 			drain_tail(&received, coded_target);
 		}
 
