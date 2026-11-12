@@ -1321,7 +1321,12 @@ int si4467_wisun_set_phy(const struct si4467_wisun_phy *phy)
 	 */
 	k_msgq_purge(&coded_jobs);
 
-	/* Properties are only safe to write outside receive mode. */
+	/*
+	 * Properties are only safe to write outside receive mode. Reception stays stopped until
+	 * si4467_wisun_start(), so a step failing below cannot leave a channel change or an RSSI
+	 * measurement to restart it on a half programmed PHY.
+	 */
+	ctx.running = false;
 	ctx.receiving = false;
 	ret = si4467_change_state(STATE_READY);
 	if (ret) {
