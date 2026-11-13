@@ -66,7 +66,9 @@ jobs:
 
   firmware:
     name: firmware
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: on 26.04's Python 3.14, Zephyr 4.2.1's requirements resolve to an hidapi
+    # that has no wheel and needs libusb headers to build, so the setup step fails.
+    runs-on: ubuntu-24.04
     # Steps run at the workspace top, which is where west belongs; the ones that run the script say
     # so, because it lives in this repository rather than in the workspace.
     steps:
