@@ -15,7 +15,7 @@ cannot tell you, including which vendor documentation is wrong.
 
 - **The tool configuration is upstream Zephyr's, unmodified.** `.checkpatch.conf`,
   `.clang-format`, `.editorconfig`, `.gitlint`, `.ruff.toml` and `.yamllint` are verbatim copies
-  from Zephyr 4.2.1 and are annotated as such in `REUSE.toml` rather than carrying an added header
+  from Zephyr 4.5.0 and are annotated as such in `REUSE.toml` rather than carrying an added header
   — so do not edit them to suit a change; change the code instead, or raise it upstream. The two
   exceptions are mechanical: `extra-path` in `.gitlint` and `--typedefsfile` in `.checkpatch.conf`
   name paths inside the zephyr tree and are repointed at `../zephyr/scripts/`.

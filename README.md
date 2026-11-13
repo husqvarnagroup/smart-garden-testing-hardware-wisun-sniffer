@@ -107,7 +107,7 @@ by hand. `application/wisun_sniffer/tools/tests/README.md` explains what each te
 ## Code style
 
 Zephyr's conventions apply, without deviation: `.checkpatch.conf`, `.clang-format`,
-`.editorconfig`, `.gitlint`, `.ruff.toml` and `.yamllint` are copied verbatim from Zephyr 4.2.1, so
+`.editorconfig`, `.gitlint`, `.ruff.toml` and `.yamllint` are copied verbatim from Zephyr 4.5.0, so
 C is indented with **tabs** at 100 columns and a commit subject is `<area>: <subject>`. Two lines
 were repointed to name paths inside the zephyr tree: `extra-path` in `.gitlint` and
 `--typedefsfile` in `.checkpatch.conf`.
