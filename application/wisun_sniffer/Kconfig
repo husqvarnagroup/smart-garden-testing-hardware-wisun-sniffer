@@ -66,4 +66,18 @@ config WISUN_SNIFFER_CAPTURE_BUF_SIZE
 	  seven largest-possible frames, or a hundred of the sizes this network
 	  actually sends.
 
+config WISUN_SNIFFER_USB_PID
+	hex "USB product ID"
+	default 0xB823
+	help
+	  Distinguishes this firmware from the other ones for the dongle when it
+	  enumerates. In use so far: 0xB820 (board default), 0xB821 and 0xB822
+	  (other firmwares). The vendor ID is Nordic's, as the board's.
+
+config WISUN_SNIFFER_USB_PRODUCT
+	string "USB product string"
+	default "Wi-SUN Sniffer Dongle"
+	help
+	  Part of the /dev/serial/by-id names the capture script looks for.
+
 source "Kconfig.zephyr"

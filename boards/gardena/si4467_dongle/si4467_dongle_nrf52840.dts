@@ -85,6 +85,14 @@ zephyr_udc0: &usbd {
 	};
 };
 
+/*
+ * The 32 kHz crystal is optional. Since it is defective on some devices of rev. 0.3.0 and may be
+ * completely omitted in the future, we derive the 32 kHz clock from the 32 MHz crystal by default.
+ */
+&lfclk {
+	k32src = "synth";
+};
+
 &uicr {
 	gpio-as-nreset;
 };

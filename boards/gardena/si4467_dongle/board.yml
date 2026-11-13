@@ -3,6 +3,7 @@
 
 board:
   name: si4467_dongle
+  full_name: Si4467 Dongle
   vendor: gardena
   socs:
     - name: nrf52840

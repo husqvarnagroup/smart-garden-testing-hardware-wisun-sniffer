@@ -115,8 +115,8 @@ sudo udevadm trigger --subsystem-match=tty
 which gives `/dev/tty-wisun-sniffer-console` and `/dev/tty-wisun-sniffer-pcapng` alongside the
 `by-id` paths.
 
-The product ID is the one this application sets in `boards/si4467_dongle_nrf52840.conf`
-(`CONFIG_USB_DEVICE_PID=B823`); `1915` is Nordic's vendor ID, which the board keeps. The match is
+The product ID is this application's own (`CONFIG_WISUN_SNIFFER_USB_PID`, default `0xB823`, in
+`Kconfig`); `1915` is Nordic's vendor ID, which the board uses as well. The match is
 therefore on the firmware rather than on a particular dongle: with two sniffer dongles connected
 both would claim the same names, and only `/dev/serial/by-id/`, which carries the serial number,
 tells them apart.

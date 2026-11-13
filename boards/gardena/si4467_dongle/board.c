@@ -4,7 +4,6 @@
  */
 
 #include <zephyr/init.h>
-#include <zephyr/usb/usb_device.h>
 
 #include <hal/nrf_power.h>
 

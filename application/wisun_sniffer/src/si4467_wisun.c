@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(si4467_wisun, LOG_LEVEL_INF);
 #define SI4467_NODE DT_NODELABEL(si4467)
 
 static const struct spi_dt_spec si4467_spi =
-	SPI_DT_SPEC_GET(SI4467_NODE, SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER, 0);
+	SPI_DT_SPEC_GET(SI4467_NODE, SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_CONTROLLER);
 static const struct gpio_dt_spec si4467_sdn = GPIO_DT_SPEC_GET(SI4467_NODE, sdn_gpios);
 static const struct gpio_dt_spec si4467_nirq = GPIO_DT_SPEC_GET(SI4467_NODE, nirq_gpios);
 

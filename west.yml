@@ -16,7 +16,7 @@ manifest:
     # cmsis_6 and hal_nordic for the nRF52840, mcuboot for the bootloader.
     - name: zephyr
       remote: zephyrproject-rtos
-      revision: v4.2.1
+      revision: v4.5.0
       path: zephyr
       west-commands: scripts/west-commands.yml
       import:

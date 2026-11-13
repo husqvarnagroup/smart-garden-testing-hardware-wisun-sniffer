@@ -3,7 +3,9 @@
 
 tests:
   wisun_sniffer.fec:
-    tags: wisun_sniffer, fec
+    tags:
+      - wisun_sniffer
+      - fec
     platform_allow:
       - native_sim
       - native_sim/native/64
