@@ -69,9 +69,3 @@ west twister -T wisun-sniffer/tests -T wisun-sniffer/application/wisun_sniffer -
 Not the repository root — building `application/mcuboot/` in place fails, for a reason explained in
 its own `README.md`. This is a known and accepted wrinkle; do not try to "fix" it by deleting the
 `sample.yaml` descriptor.
-
-## The firmware CI job is pinned to ubuntu-24.04
-
-On `ubuntu-latest` (26.04, Python 3.14), Zephyr 4.2.1's requirements fail to install, so the
-`firmware` job in `.github/workflows/checks.yml` runs on `ubuntu-24.04`. When Zephyr is updated in
-`west.yml`, try moving it to `ubuntu-26.04` (pinned, not `ubuntu-latest`).
