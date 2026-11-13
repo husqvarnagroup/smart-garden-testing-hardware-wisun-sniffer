@@ -546,18 +546,25 @@ took, so the rest simply stays staged. Transmit is disabled once the ring is emp
 the driver calls straight back for as long as it has room.
 
 Verify any change here by flooding the stream and walking the result block by block; the drops
-must be accounted for exactly. `wisun_sniffer inject 500` overruns the buffer several times over:
+must be accounted for exactly. Two runs, because **a reader that keeps up never exercises the drop
+path**: the drain outpaces `wisun_sniffer inject`, so even 5000 frames arrive with no drops.
+
+- **Reader keeping up**: capture with `tools/wisun_sniffer_capture.py -w`, then
+  `wisun_sniffer inject 500`. Every frame must arrive.
+- **Reader stalled**: open the `-if02` port, take DTR low and then high (the rising edge starts the
+  section), read until it idles, then stop reading, run `wisun_sniffer inject 500`, and only then
+  drain the port. The staging buffer and the CDC ACM buffers fill and the rest is dropped.
+
+Measured on the dongle:
 
 ```text
-offered 502 = 500 injected + 2 received while attached
-capture drops 399, so 103 blocks should be in the stream
-13076 of 13076 octets consumed
-  EPB=103, IDB=1, SHB=1            <- one section per capture, never more
+keeping up: 62172 of 62172 octets consumed  SHB=1 IDB=1 EPB=500   capture drops 0
+stalled:    29188 of 29188 octets consumed  SHB=1 IDB=1 EPB=234   capture drops 266
 ```
 
-Every octet must be consumed by the walk, and `EPB + capture drops` must equal the frames offered.
-A capture that merely *opens* in Wireshark proves nothing: corruption shows up only after the
-buffer has wrapped under sustained load.
+Every octet must be consumed by the walk, `EPB + capture drops` must equal the frames offered, and
+there is one section per capture, never more. A capture that merely *opens* in Wireshark proves
+nothing: corruption shows up only after the buffers have filled.
 
 ## The capture script
 
