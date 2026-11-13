@@ -16,6 +16,13 @@ list](application/wisun_sniffer/doc/screenshots/wireshark.png)
 `application/wisun_sniffer/README.md` explains the firmware itself — the PHY, capture, Wireshark
 integration and the shell; this file covers the repository and the workspace around it.
 
+## AI Disclaimer / Warning
+
+The majority of the code and documentation in this repository was written by
+Claude. Review was done based on checking the functionality (i.e. the sniffer
+actually works for different modes, channels, etc.) rather than reviewing the
+actual code. The sniffer works well for me, but use at your own peril.
+
 ## What is here
 
 | Path                               | Contents                                                 |
