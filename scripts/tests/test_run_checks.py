@@ -128,12 +128,12 @@ def test_python_with_falls_back_to_uv_when_none_has_them(run_checks, monkeypatch
     monkeypatch.setattr(run_checks, "run", lambda cmd, cwd=None: (1, "ModuleNotFoundError"))
     monkeypatch.setattr(run_checks.shutil, "which", lambda name: "/usr/bin/uv")
 
-    assert run_checks.python_with(("pykwalify.core", "yaml"), ("pykwalify", "pyyaml")) == [
+    assert run_checks.python_with(("jsonschema", "yaml"), ("jsonschema", "pyyaml")) == [
         "/usr/bin/uv",
         "run",
         "--no-project",
         "--with",
-        "pykwalify",
+        "jsonschema",
         "--with",
         "pyyaml",
         "python",
@@ -144,8 +144,8 @@ def test_python_with_says_so_when_it_cannot_fetch_them(run_checks, monkeypatch):
     monkeypatch.setattr(run_checks, "run", lambda cmd, cwd=None: (1, "ModuleNotFoundError"))
     monkeypatch.setattr(run_checks.shutil, "which", lambda name: None)
 
-    with pytest.raises(run_checks.CheckError, match="pykwalify.core"):
-        run_checks.python_with(("pykwalify.core",), ("pykwalify",))
+    with pytest.raises(run_checks.CheckError, match="jsonschema"):
+        run_checks.python_with(("jsonschema",), ("jsonschema",))
 
 
 @pytest.fixture

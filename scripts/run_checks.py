@@ -277,26 +277,34 @@ def check_gitlint(fix: bool) -> Result:
 
 VALIDATE_SNIPPET = """
 import logging
+import os
 import sys
-import pykwalify.core
-import yaml
 
-# Twister validates these with pykwalify, not jsonschema: the file under
-# scripts/schemas/twister/ is a pykwalify schema that looks superficially like
-# JSON Schema. See scripts/pylib/twister/scl.py in the Zephyr tree.
-logging.getLogger("pykwalify.core").setLevel(logging.CRITICAL)
+# Twister's own parser rather than a copy of it: besides the schema, it rejects some values the
+# schema lets through, such as a space-separated list of tags. Each scenario is expanded the way
+# twister does, which is where that check happens.
+base = sys.argv[1]
+os.environ["ZEPHYR_BASE"] = base
+sys.path.insert(0, os.path.join(base, "scripts", "pylib", "twister"))
+import scl
+from twisterlib.config_parser import TwisterConfigParser
 
-with open(sys.argv[1]) as handle:
-    schema = yaml.safe_load(handle)
+# Twister logs a stack dump with every exception it raises.
+logging.getLogger("twister").setLevel(logging.CRITICAL)
+
+schema = scl.yaml_load(sys.argv[2])
 
 problems = []
-for name in sys.argv[2:]:
-    with open(name) as handle:
-        data = yaml.safe_load(handle)
+for name in sys.argv[3:]:
     try:
-        pykwalify.core.Core(source_data=data, schema_data=schema).validate(raise_exception=True)
+        parser = TwisterConfigParser(name, schema)
+        parser.load()
+        for scenario in parser.scenarios:
+            parser.get_scenario(scenario)
     except Exception as error:
-        problems.append("%s: %s" % (name, error))
+        # A ConfigurationError already starts with the file name.
+        message = str(error)
+        problems.append(message if message.startswith(name) else "%s: %s" % (name, message))
 
 print("\\n".join(problems), end="")
 sys.exit(1 if problems else 0)
@@ -307,7 +315,7 @@ def workspace_python() -> str:
     """The interpreter the Zephyr-side checks run under.
 
     Not sys.executable and not this repository's venv: twister and the schema
-    validation need Zephyr's own requirements -- pykwalify, colorama, pyelftools
+    validation need Zephyr's own requirements -- jsonschema, colorama, pyelftools
     and the rest -- which live in the west workspace venv beside .west/.
     """
     candidate = REPO.parent / ".venv" / "bin" / "python"
@@ -320,9 +328,9 @@ def workspace_python() -> str:
 def python_with(modules: Sequence[str], packages: Sequence[str]) -> list[str]:
     """An interpreter that can import @p modules, as a command prefix.
 
-    Zephyr keeps pykwalify in requirements-build-test.txt rather than in its
-    base requirements, so the west workspace venv may or may not have it
-    depending on which of them was installed. Probe rather than assume, and fall
+    Twister's own modules need jsonschema and PyYAML, which the west workspace
+    venv may or may not have depending on which of Zephyr's requirements were
+    installed. Probe rather than assume, and fall
     back to fetching @p packages through uv, the same way tool() does.
     """
     probe = "import " + ", ".join(modules)
@@ -344,7 +352,7 @@ def check_app_yaml(fix: bool) -> Result:
     """Validate every scenario file against twister's own schema.
 
     Run in a subprocess rather than imported: this script runs under whatever
-    python invoked it, which is not necessarily one that has pykwalify.
+    python invoked it, which is not necessarily one that has jsonschema.
     """
     base = zephyr_base()
     assert base is not None
@@ -359,8 +367,8 @@ def check_app_yaml(fix: bool) -> Result:
     if not files:
         return Result(True, "no scenario files")
 
-    python = python_with(("pykwalify.core", "yaml"), ("pykwalify", "pyyaml"))
-    code, out = run([*python, "-c", VALIDATE_SNIPPET, str(schema), *files])
+    python = python_with(("jsonschema", "yaml"), ("jsonschema", "pyyaml"))
+    code, out = run([*python, "-c", VALIDATE_SNIPPET, str(base), str(schema), *files])
     return Result(code == 0, out)
 
 
@@ -395,7 +403,7 @@ def twister(*args: str) -> tuple[int, str]:
     """Run twister, through west where there is one.
 
     `west twister` is what README.md tells you to test with, and going through
-    it is what puts Zephyr's own requirements -- pykwalify, pyelftools, ply and
+    it is what puts Zephyr's own requirements -- jsonschema, pyelftools, ply and
     the rest -- on sys.path, because west runs the extension under the
     interpreter west itself was installed into. Invoking scripts/twister with an
     interpreter of our choosing only works if that one happens to have them
