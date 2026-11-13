@@ -18,5 +18,12 @@
 &usbd {
 	cdc_acm_uart1: cdc_acm_uart1 {
 		compatible = "zephyr,cdc-acm-uart";
+		/*
+		 * A Wi-SUN PSDU may be up to 2047 octets. Four times the largest frame rather
+		 * than twice it, because this buffer sits behind the application's own staging
+		 * buffer and a frame that reaches it has already been counted as captured --
+		 * losing it here would not show up in the drop counter.
+		 */
+		tx-fifo-size = <8192>;
 	};
 };

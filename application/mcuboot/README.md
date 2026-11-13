@@ -54,7 +54,15 @@ west flash
 ```
 
 Afterwards the dongle takes application images through USB DFU: hold the user button while
-resetting, and the application LED lights to say it is in DFU mode. The image to load is
-`build/zephyr/zephyr.signed.confirmed.hex` from an application built with
-`overlays/si4467_dongle-mcuboot.conf`, into the `image-0` partition at 0x10000. Zephyr calls that file
-`.signed.` whether or not a key was used; here it carries a header and a SHA256 and no signature.
+resetting, and the application LED lights to say it is in DFU mode. The dongle then enumerates as
+`1915:b820` with one DFU alternate setting, `slot0_image`, which writes the `image-0` partition at
+0x10000. The image to load is `build/zephyr/zephyr.signed.confirmed.bin` from an application built
+with `overlays/si4467_dongle-mcuboot.conf`:
+
+```console
+dfu-util -d 1915:b820 -a slot0_image -D build/zephyr/zephyr.signed.confirmed.bin
+```
+
+Zephyr calls that file `.signed.` whether or not a key was used; here it carries a header and a
+SHA256 and no signature. Once the download completes, MCUboot validates the image and boots it
+without a reset.

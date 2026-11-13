@@ -522,31 +522,28 @@ is reading the dongle at all. `led_ready` makes a board without the pin quiet ra
 GPIO failure every quarter second, and a failed `led_init()` is a warning in `main()` rather than a
 return — an indicator that cannot be lit is no reason to leave the dongle deaf.
 
-## Writing to the capture UART, and the two ways it corrupts the stream
+## Writing to the capture UART
 
 PCAP-NG has no marker to resynchronise on. A reader that loses its place in the middle of a block
 takes the following octets for a block header, and every block after that is garbage — so **losing
-a whole frame is vastly better than writing a partial block**. Two separate hazards make a naive
-write do exactly the wrong thing, and `pcapng.c` is shaped around both. Do not simplify it back to
-writing straight to the UART.
+a whole frame is vastly better than writing a partial block**. Two properties of the CDC ACM driver
+(USB device_next) make a naive write do exactly the wrong thing, and `pcapng.c` is shaped around
+both. Do not simplify it back to writing straight to the UART.
 
 1. **`uart_poll_out()` discards silently.** The capture UART has no flow control, so once the CDC
-   ACM ring buffer fills it drops octets mid-block and returns as if it had written them.
-2. **The CDC ACM driver frees buffer space before the data has been sent.** `tx_work_handler()`
-   hands `usb_transfer()` a pointer into its own ring buffer and calls `ring_buf_get_finish()`
-   immediately, so the space is advertised as free while the host still has not been sent it.
-   Writing into it splices old and new content together.
+   ACM transmit buffers (`tx-fifo-size` in the overlay) are full it drops octets mid-block and
+   returns as if it had written them.
+2. **`uart_fifo_fill()` and `uart_irq_tx_ready()` only work inside the UART IRQ callback.** The
+   driver runs that callback on its work queue; called from anywhere else they return 0, and with
+   `CONFIG_ASSERT=y` they assert.
 
 The design that satisfies both: frames are staged in an application owned ring buffer
 (`CONFIG_WISUN_SNIFFER_CAPTURE_BUF_SIZE`), and `reserve()` claims room for the **complete** block
-before any of it is written, so a block is either staged whole or dropped whole. A dedicated thread
-drains it, and it waits for `uart_irq_tx_ready()` to go non-zero before each write.
-
-That wait is an **interlock, not a measure of free space** — the distinction matters, because
-treating it as free space is what starved an earlier version of this code to 115 octets in 20
-seconds. `tx_ready` is clear for exactly as long as a transfer is in flight, which is precisely the
-window in which hazard 2 bites. `uart_fifo_fill()` is used rather than `uart_poll_out()` because it
-reports how much it accepted, so the remainder can be retried.
+before any of it is written, so a block is either staged whole or dropped whole. `emit()` enables
+transmit, and `uart_cb()` moves as much as `uart_irq_tx_ready()` says there is room for; the driver
+calls it again after every completed USB transfer. `uart_fifo_fill()` copies and reports how much it
+took, so the rest simply stays staged. Transmit is disabled once the ring is empty — left enabled,
+the driver calls straight back for as long as it has room.
 
 Verify any change here by flooding the stream and walking the result block by block; the drops
 must be accounted for exactly. `wisun_sniffer inject 500` overruns the buffer several times over:
@@ -870,12 +867,11 @@ header, and it left every capture opening with a run of stale empty sections.
 
 The command does not make the port `cat`-clean in every case, and should not be described as
 though it does. It puts a decodable section into the stream from that point on, but a backlog
-staged while nothing was attached still precedes it, in `tx_ring` and in up to
-`CONFIG_USB_CDC_ACM_RINGBUF_SIZE` of the CDC ACM driver's own buffer, and `cat` writes from byte
-zero, so the file begins with the tail of an older section and Wireshark refuses it. Making that
-case work would mean not staging frames at all while unattached, which needs a software notion of
-"attached" that a reader with no DTR can never clear — a real design decision, not a tidy-up. It
-has not been taken.
+staged while nothing was attached still precedes it, in `tx_ring` and in up to the overlay's
+`tx-fifo-size` of the CDC ACM driver's own buffers, and `cat` writes from byte zero, so the file
+begins with the tail of an older section and Wireshark refuses it. Making that case work would mean
+not staging frames at all while unattached, which needs a software notion of "attached" that a
+reader with no DTR can never clear — a real design decision, not a tidy-up. It has not been taken.
 
 **Frames captured before a capture starts are thrown away, deliberately.** Whatever the dongle
 staged while nothing was attached is flushed when a reader turns up, ahead of the new section

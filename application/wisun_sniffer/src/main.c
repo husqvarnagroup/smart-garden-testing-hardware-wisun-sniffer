@@ -9,7 +9,7 @@
 #include "tap.h"
 #include "wisun_phy.h"
 
-#include <app_version.h>
+#include <zephyr/app_version.h>
 
 #include <zephyr/device.h>
 #include <zephyr/kernel.h>

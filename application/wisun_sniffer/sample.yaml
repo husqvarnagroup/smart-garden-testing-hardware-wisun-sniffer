@@ -14,7 +14,10 @@ tests:
     platform_allow: si4467_dongle/nrf52840
     integration_platforms:
       - si4467_dongle/nrf52840
-    tags: wisun sniffer si4467
+    tags:
+      - wisun
+      - sniffer
+      - si4467
     build_only: true
 
   # The same firmware, linked to load through MCUboot so the dongle can be updated over USB DFU.
@@ -25,5 +28,9 @@ tests:
       - si4467_dongle/nrf52840
     extra_args:
       - EXTRA_CONF_FILE=overlays/si4467_dongle-mcuboot.conf
-    tags: wisun sniffer si4467 mcuboot
+    tags:
+      - wisun
+      - sniffer
+      - si4467
+      - mcuboot
     build_only: true

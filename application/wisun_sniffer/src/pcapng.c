@@ -84,19 +84,19 @@ static K_MUTEX_DEFINE(stream_lock);
  * Staging buffer between the frame path and the USB stack.
  *
  * The capture UART cannot be written directly without risking a corrupt stream. It has no flow
- * control, so uart_poll_out() discards octets once the CDC ACM ring buffer is full, and a block
- * that is cut short is far worse than a block that never arrives: PCAP-NG has no marker to
+ * control, so uart_poll_out() discards octets once the CDC ACM transmit buffers are full, and a
+ * block that is cut short is far worse than a block that never arrives: PCAP-NG has no marker to
  * resynchronise on, so a reader that loses its place reads the following octets as a block header
  * and everything after that is garbage.
  *
  * Buffering here makes the whole block the unit that gets dropped. Space for a complete block is
  * claimed before any of it is written, so a block reaches the stream either intact or not at all.
+ *
+ * One producer, under stream_lock, and one consumer, uart_cb(), so the ring needs no lock of its
+ * own.
  */
 static uint8_t tx_buf[CONFIG_WISUN_SNIFFER_CAPTURE_BUF_SIZE];
 static struct ring_buf tx_ring;
-
-/** Wakes the drain thread when a block has been staged. */
-static K_SEM_DEFINE(tx_pending, 0, 1);
 
 /** Frames dropped with a reader attached because the staging buffer was full; see "stats". */
 static uint32_t dropped;
@@ -105,7 +105,7 @@ static uint32_t dropped;
  * @brief Claim space for a whole block, so it is never written in part.
  *
  * Call with stream_lock held, before the first emit() of a block -- once reserved, space cannot
- * disappear again (only the drain thread consumes the buffer), so every emit() that follows is
+ * disappear again (only uart_cb() consumes the buffer), so every emit() that follows is
  * guaranteed to fit.
  *
  * @return true if the block can be written, false if it has to be dropped.
@@ -122,71 +122,52 @@ static void emit(const uint8_t *data, size_t len)
 	__ASSERT(wrote == len, "PCAP-NG block truncated despite reserve()");
 	ARG_UNUSED(wrote);
 
-	k_sem_give(&tx_pending);
+	uart_irq_tx_enable(capture_uart);
 }
-
-/** How long to wait for the USB transfer in flight to finish before looking again. */
-#define TX_BUSY_POLL K_MSEC(1)
-
-/**
- * The same, with no reader attached. The transfer then stays in flight until one is, so looking
- * every millisecond would only wake this thread a thousand times a second for nothing.
- */
-#define TX_IDLE_POLL K_MSEC(100)
 
 /**
  * @brief Move staged octets into the USB stack.
  *
- * Two details of the CDC ACM driver dictate the shape of this loop.
+ * The CDC ACM driver accepts uart_fifo_fill() and answers uart_irq_tx_ready() only from inside
+ * this callback, which it runs on its work queue whenever transmit is enabled and it has room:
+ * after uart_irq_tx_enable() and after each completed USB transfer. uart_fifo_fill() copies, and
+ * reports how much it took, so the remainder simply stays staged for the next call.
  *
- * It is written with uart_fifo_fill() rather than uart_poll_out(), because that reports how much it
- * accepted instead of discarding the rest, which is what lets the remainder be retried. The UART
- * API expects it to be called from an interrupt handler, but for CDC ACM it is a plain buffered
- * write guarded by irq_lock(), exactly like the driver's own poll_out, so a thread is safe here.
- *
- * It also waits for uart_irq_tx_ready(), which stays at zero for as long as a USB transfer is in
- * flight. That wait is not for free space, and treating it as a measure of free space is what
- * starved an earlier version of this loop. It is an interlock: the driver hands the transfer a
- * pointer into its own ring buffer and then immediately marks that space free, so writing while a
- * transfer is in flight overwrites octets the host has not been sent yet. That corrupts the stream
- * in the worst possible way, splicing part of one block into the middle of another.
+ * Transmit is disabled once the ring is empty, or the driver would call straight back for as long
+ * as it has room.
  */
-static void tx_thread_fn(void *p1, void *p2, void *p3)
+static void uart_cb(const struct device *dev, void *user_data)
 {
-	ARG_UNUSED(p1);
-	ARG_UNUSED(p2);
-	ARG_UNUSED(p3);
+	ARG_UNUSED(user_data);
 
-	while (true) {
+	uart_irq_update(dev);
+
+	while (!ring_buf_is_empty(&tx_ring)) {
+		const int space = uart_irq_tx_ready(dev);
 		uint8_t *data;
 		uint32_t claimed;
-		int space;
 		int wrote;
 
-		if (ring_buf_is_empty(&tx_ring)) {
-			k_sem_take(&tx_pending, K_FOREVER);
-			continue;
-		}
-
-		space = uart_irq_tx_ready(capture_uart);
 		if (space <= 0) {
-			k_sleep(host_attached ? TX_BUSY_POLL : TX_IDLE_POLL);
-			continue;
+			return;
 		}
 
-		claimed = ring_buf_get_claim(&tx_ring, &data, (uint32_t)space);
-		wrote = uart_fifo_fill(capture_uart, data, (int)claimed);
-		ring_buf_get_finish(&tx_ring, wrote > 0 ? (uint32_t)wrote : 0);
+		claimed = MIN(ring_buf_get_ptr(&tx_ring, &data, 0), (uint32_t)space);
+		wrote = uart_fifo_fill(dev, data, (int)claimed);
+		if (wrote <= 0) {
+			return;
+		}
+
+		ring_buf_consume(&tx_ring, (size_t)wrote);
+	}
+
+	uart_irq_tx_disable(dev);
+
+	/* A block staged after the last check would otherwise wait for the next one. */
+	if (!ring_buf_is_empty(&tx_ring)) {
+		uart_irq_tx_enable(dev);
 	}
 }
-
-/*
- * The drain thread only moves octets from the ring buffer to the UART FIFO, so needs little --
- * but gets a kilobyte anyway: nothing here is measured, and a stack overflow in the one thread
- * that keeps the capture stream moving would look like a hung dongle, not a crash.
- */
-static K_THREAD_STACK_DEFINE(tx_thread_stack, 1024);
-static struct k_thread tx_thread;
 
 /**
  * Serialises a block into a buffer so that its total length, which PCAP-NG stores both before and
@@ -475,6 +456,8 @@ void pcapng_reset_dropped(void)
 
 int pcapng_init(void)
 {
+	int ret;
+
 	if (!device_is_ready(capture_uart)) {
 		LOG_ERR("capture UART %s is not ready", capture_uart->name);
 		return -ENODEV;
@@ -482,19 +465,11 @@ int pcapng_init(void)
 
 	ring_buf_init(&tx_ring, sizeof(tx_buf), tx_buf);
 
-	/*
-	 * No callback is registered: this only makes the driver report its transmit ready state
-	 * through uart_irq_tx_ready(), which the drain thread waits on. See tx_thread_fn().
-	 */
-	uart_irq_tx_enable(capture_uart);
-
-	/*
-	 * Preemptible, and so below the cooperative receive thread: draining the buffer must never
-	 * delay servicing the transceiver, which has only a 64 octet FIFO to fall back on.
-	 */
-	k_thread_create(&tx_thread, tx_thread_stack, K_THREAD_STACK_SIZEOF(tx_thread_stack),
-			tx_thread_fn, NULL, NULL, NULL, K_PRIO_PREEMPT(7), 0, K_NO_WAIT);
-	k_thread_name_set(&tx_thread, "pcapng_tx");
+	ret = uart_irq_callback_user_data_set(capture_uart, uart_cb, NULL);
+	if (ret != 0) {
+		LOG_ERR("capture UART %s has no interrupt API (%d)", capture_uart->name, ret);
+		return ret;
+	}
 
 	k_work_reschedule(&monitor_work, MONITOR_INTERVAL);
 

@@ -16,6 +16,7 @@ target_sources(
         src/si4467_fec.c
         src/si4467_wisun.c
         src/tap.c
+        src/usb.c
         src/wisun_phy.c
 )
 
