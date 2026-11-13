@@ -4,7 +4,7 @@
 
 version = 1
 
-# Tool configuration copied verbatim from the Zephyr Project (v4.2.1), so that this repository is
+# Tool configuration copied verbatim from the Zephyr Project (v4.5.0), so that this repository is
 # formatted and checked exactly as upstream is. Annotated here rather than by editing the files to
 # keep the diff empty.
 [[annotations]]
