@@ -67,3 +67,27 @@ dfu-util -d 1915:b820 -a slot0_image -D build/zephyr/zephyr.signed.bin
 Zephyr calls that file `.signed.` whether or not a key was used; here it carries a header and a
 SHA256 and no signature. Once the download completes, MCUboot validates the image and boots it
 without a reset.
+
+### Dongles with the older bootloader
+
+Dongles flashed before the move to Zephyr 4.5 carry a bootloader with the legacy USB stack, whose
+DFU mode takes two steps. Both bootloaders boot images built with either Zephyr version, so only
+the procedure differs; flashing the current bootloader with a probe, as above, moves a dongle over.
+
+| Bootloader           | DFU mode enumerates as                      | Alternate setting | After the download |
+|----------------------|---------------------------------------------|-------------------|--------------------|
+| Current (Zephyr 4.5) | `1915:b820`                                 | `slot0_image`     | boots the image    |
+| Older (Zephyr 4.2)   | `1915:b820`, then `1915:ffff` once detached | `image_0`         | reboots            |
+
+`dfu-util -l` tells them apart: the older one is listed as `Found Runtime` with an `UNKNOWN`
+alternate setting. Its first `dfu-util` call only detaches it, and ends with
+`Lost device after RESET?` while the dongle re-enumerates as `1915:ffff`; the second one loads the
+image:
+
+```console
+dfu-util -d 1915:b820 -a 0 -D build/zephyr/zephyr.signed.bin
+dfu-util -d 1915:ffff -a image_0 -D build/zephyr/zephyr.signed.bin
+```
+
+The second call exits with status 74 because the bootloader reboots at the end; the download itself
+has completed once it reports `Download done.`
