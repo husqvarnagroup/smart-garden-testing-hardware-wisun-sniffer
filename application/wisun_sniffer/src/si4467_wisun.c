@@ -24,7 +24,8 @@
 
 #include <string.h>
 
-LOG_MODULE_REGISTER(si4467_wisun, LOG_LEVEL_INF);
+/* Debug compiled in for "log enable dbg si4467_wisun"; runtime starts at info. */
+LOG_MODULE_REGISTER(si4467_wisun, LOG_LEVEL_DBG);
 
 #define SI4467_NODE DT_NODELABEL(si4467)
 
