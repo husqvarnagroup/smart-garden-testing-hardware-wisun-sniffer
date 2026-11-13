@@ -34,4 +34,14 @@ config CDC_ACM_SERIAL_PRODUCT_STRING
 
 endif # CDC_ACM_SERIAL_INITIALIZE_AT_BOOT
 
+if LOG
+
+# The log goes out over the USB device this driver runs; Zephyr's common defaults above silence the
+# stack and the CDC ACM class for the same reason.
+choice UDC_DRIVER_LOG_LEVEL_CHOICE
+	default UDC_DRIVER_LOG_LEVEL_OFF
+endchoice
+
+endif # LOG
+
 endif # BOARD_SI4467_DONGLE
