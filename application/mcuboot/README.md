@@ -56,11 +56,12 @@ west flash
 Afterwards the dongle takes application images through USB DFU: hold the user button while
 resetting, and the application LED lights to say it is in DFU mode. The dongle then enumerates as
 `1915:b820` with one DFU alternate setting, `slot0_image`, which writes the `image-0` partition at
-0x10000. The image to load is `build/zephyr/zephyr.signed.confirmed.bin` from an application built
-with `overlays/si4467_dongle-mcuboot.conf`:
+0x10000. The image to load is `build/zephyr/zephyr.signed.bin` from an application built with
+`overlays/si4467_dongle-mcuboot.conf` — not `zephyr.signed.confirmed.bin`, which is padded to the
+whole slot for a confirmation flag that a single slot has no use for:
 
 ```console
-dfu-util -d 1915:b820 -a slot0_image -D build/zephyr/zephyr.signed.confirmed.bin
+dfu-util -d 1915:b820 -a slot0_image -D build/zephyr/zephyr.signed.bin
 ```
 
 Zephyr calls that file `.signed.` whether or not a key was used; here it carries a header and a
